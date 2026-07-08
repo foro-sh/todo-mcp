@@ -100,4 +100,10 @@ if __name__ == "__main__":
         transport="http",
         host="0.0.0.0",
         port=int(os.environ.get("MCP_PORT", "8000")),
+        # FastMCP's host/origin protection guards local dev servers against
+        # DNS rebinding by rejecting Hosts it doesn't expect (HTTP 421). On
+        # foro.sh the server sits behind a reverse proxy and requests arrive
+        # with the public hostname, so this must be off — access control is
+        # the platform's bearer token instead.
+        host_origin_protection=False,
     )
