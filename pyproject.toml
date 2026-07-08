@@ -1,0 +1,6 @@
+[project]
+name = "todo-mcp"
+version = "0.1.0"
+description = "A stateful todo-list MCP server — the foro.sh example project"
+requires-python = ">=3.12"
+dependencies = ["fastmcp>=2.0"]

@@ -1,0 +1,7 @@
+# foro.sh deployment manifest — see https://foro.sh
+name: todo-mcp
+entrypoint: server.py
+# Optional (shown with their defaults):
+# build_path: .
+# python_version: "3.12"
+# port: 8000
