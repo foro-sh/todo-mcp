@@ -7,9 +7,10 @@ when the server restarts or redeploys (see README).
 
 import os
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastmcp import FastMCP
+from pydantic import Field
 
 mcp = FastMCP(
     "todo-mcp",
@@ -22,6 +23,13 @@ mcp = FastMCP(
 
 Priority = Literal["low", "medium", "high"]
 Status = Literal["all", "open", "done"]
+
+# Every parameter without a default carries an `examples` entry, so a client
+# that pre-fills a call from the schema — foro.sh's Playground does — starts
+# from something worth running rather than a bare `""` / `0`. Parameters with a
+# default need none: the default is already the example.
+TaskTitle = Annotated[str, Field(examples=["Buy milk"])]
+TaskId = Annotated[int, Field(examples=[1])]
 
 
 @dataclass
@@ -49,7 +57,7 @@ def _get(task_id: int) -> Task:
 
 
 @mcp.tool
-def add_task(title: str, priority: Priority = "medium") -> Task:
+def add_task(title: TaskTitle, priority: Priority = "medium") -> Task:
     """Add a task to the list and return it."""
     task = Task(id=store.next_id, title=title, priority=priority)
     store.tasks[task.id] = task
@@ -69,7 +77,7 @@ def list_tasks(status: Status = "all") -> list[Task]:
 
 
 @mcp.tool
-def complete_task(id: int) -> Task:
+def complete_task(id: TaskId) -> Task:
     """Mark a task as done and return it."""
     task = _get(id)
     task.done = True
@@ -77,7 +85,7 @@ def complete_task(id: int) -> Task:
 
 
 @mcp.tool
-def delete_task(id: int) -> None:
+def delete_task(id: TaskId) -> None:
     """Delete a task from the list."""
     _get(id)
     del store.tasks[id]
