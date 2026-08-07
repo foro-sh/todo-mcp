@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; }
+    body {
+      font: 14px/1.5 system-ui, sans-serif;
+      padding: 12px;
+      color: CanvasText;
+    }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    li + li { border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
+    input[type=checkbox] { width: 16px; height: 16px; flex: none; }
+    label { flex: 1; cursor: pointer; }
+    li.done label { opacity: 0.5; text-decoration: line-through; }
+    .prio { font-size: 11px; opacity: 0.6; text-transform: uppercase; }
+    .prio.high { color: #d33; opacity: 1; }
+    .empty { opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <ul id="list"></ul>
+  <p id="empty" class="empty" hidden>No tasks yet — try the <code>add_task</code> tool.</p>
+
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+    const app = new App({ name: "Todo List", version: "1.0.0" });
+    const list = document.getElementById("list");
+    const empty = document.getElementById("empty");
+
+    // FastMCP wraps a non-dict return in {"result": ...}; fall back to the
+    // text content for hosts that drop structuredContent.
+    const tasksFrom = (res) =>
+      res?.structuredContent?.result ??
+      (Array.isArray(res?.structuredContent) ? res.structuredContent : null) ??
+      JSON.parse(res?.content?.find((c) => c.type === "text")?.text ?? "[]");
+
+    function render(tasks) {
+      list.replaceChildren(...tasks.map((task) => {
+        const li = document.createElement("li");
+        li.className = task.done ? "done" : "";
+
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = task.done;
+        box.id = `task-${task.id}`;
+        box.onchange = () => toggle(task, box.checked);
+
+        const label = document.createElement("label");
+        label.htmlFor = box.id;
+        label.textContent = task.title;
+
+        const prio = document.createElement("span");
+        prio.className = `prio ${task.priority}`;
+        prio.textContent = task.priority;
+
+        li.append(box, label, prio);
+        return li;
+      }));
+      empty.hidden = tasks.length > 0;
+    }
+
+    async function refresh() {
+      const tasks = tasksFrom(await app.callServerTool({ name: "list_tasks", arguments: {} }));
+      render(tasks);
+      const open = tasks.filter((t) => !t.done);
+      await app.updateModelContext({
+        content: [{
+          type: "text",
+          text: `The user's todo list has ${tasks.length} task(s), ${open.length} open:\n` +
+            tasks.map((t) => `- [${t.done ? "x" : " "}] #${t.id} ${t.title} (${t.priority})`).join("\n"),
+        }],
+      });
+    }
+
+    async function toggle(task, done) {
+      await app.callServerTool({
+        name: done ? "complete_task" : "reopen_task",
+        arguments: { id: task.id },
+      });
+      await refresh();
+    }
+
+    // Any todo tool the model calls re-opens this view — always show live state.
+    app.ontoolresult = () => { refresh(); };
+
+    await app.connect();
+    await refresh();
+  </script>
+</body>
+</html>
