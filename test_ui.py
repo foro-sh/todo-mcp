@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import re
 
 from fastmcp import Client
 
@@ -27,6 +28,9 @@ async def main() -> None:
 
         html = (await client.read_resource(TODO_UI))[0].text
         assert "ext-apps" in html and "callServerTool" in html
+        # Every tool the view calls by name must actually exist on the server.
+        for name in re.findall(r'name: "(\w+)"', html) + ["complete_task", "reopen_task"]:
+            assert name in tools, f"view.html calls missing tool {name}"
 
     print("ok")
 

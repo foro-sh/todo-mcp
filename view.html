@@ -18,11 +18,27 @@
     .prio { font-size: 11px; opacity: 0.6; text-transform: uppercase; }
     .prio.high { color: #d33; opacity: 1; }
     .empty { opacity: 0.6; }
+
+    /* Same row shape as an li, so it reads as one more line in the list. */
+    #add { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    #add { border-top: 1px solid color-mix(in srgb, CanvasText 12%, transparent); }
+    #add span { width: 16px; text-align: center; opacity: 0.4; flex: none; }
+    #title { flex: 1; font: inherit; color: inherit; padding: 0; }
+    #title { border: 0; background: transparent; }
+    #title:focus { outline: none; }
+    #add:focus-within span { opacity: 0.8; }
   </style>
 </head>
 <body>
   <ul id="list"></ul>
-  <p id="empty" class="empty" hidden>No tasks yet — try the <code>add_task</code> tool.</p>
+  <p id="empty" class="empty" hidden>No tasks yet — add one below.</p>
+
+  <!-- A plain form, so Enter submits without a keydown handler. -->
+  <form id="add">
+    <span aria-hidden="true">+</span>
+    <input id="title" aria-label="New task title" placeholder="Add a task…"
+           autocomplete="off" required>
+  </form>
 
   <script type="module">
     import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
@@ -83,6 +99,19 @@
       });
       await refresh();
     }
+
+    const title = document.getElementById("title");
+
+    document.getElementById("add").onsubmit = async (event) => {
+      event.preventDefault();
+      const value = title.value.trim();
+      if (!value) return;  // `required` lets through whitespace-only
+      // Clear first: refresh() awaits a round trip, and typing during it
+      // would otherwise be wiped when the response lands.
+      title.value = "";
+      await app.callServerTool({ name: "add_task", arguments: { title: value } });
+      await refresh();
+    };
 
     // Any todo tool the model calls re-opens this view — always show live state.
     app.ontoolresult = () => { refresh(); };
