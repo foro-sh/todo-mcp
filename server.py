@@ -7,9 +7,11 @@ when the server restarts or redeploys (see README).
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastmcp import FastMCP
+from fastmcp.apps import AppConfig, ResourceCSP, app_config_to_meta_dict
 from pydantic import Field
 
 mcp = FastMCP(
@@ -48,6 +50,30 @@ class Store:
 
 store = Store()
 
+# MCP Apps (https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/):
+# a tool points at a `ui://` resource, the host renders that resource in a
+# sandboxed iframe next to the tool result. `todo_app` goes on the tools;
+# the csp/permissions half of the config belongs on the resource itself.
+TODO_UI = "ui://todo/list"
+todo_app = AppConfig(resource_uri=TODO_UI)
+
+# view.html pulls the MCP Apps SDK off a CDN. The host builds the iframe's
+# Content-Security-Policy from this declaration, so an undeclared origin means
+# a blocked script and a blank view.
+UI_RESOURCE_META = {
+    "ui": app_config_to_meta_dict(
+        AppConfig(csp=ResourceCSP(resource_domains=["https://unpkg.com"]))
+    )
+}
+
+
+@mcp.resource(TODO_UI, meta=UI_RESOURCE_META)
+def todo_view() -> str:
+    """The interactive todo list, rendered by the host in an iframe."""
+    # `ui://` resources default to the mime type MCP Apps expects
+    # (text/html;profile=mcp-app), so it needs no `mime_type=`.
+    return (Path(__file__).parent / "view.html").read_text()
+
 
 def _get(task_id: int) -> Task:
     task = store.tasks.get(task_id)
@@ -56,7 +82,7 @@ def _get(task_id: int) -> Task:
     return task
 
 
-@mcp.tool
+@mcp.tool(app=todo_app)
 def add_task(title: TaskTitle, priority: Priority = "medium") -> Task:
     """Add a task to the list and return it."""
     task = Task(id=store.next_id, title=title, priority=priority)
@@ -65,7 +91,7 @@ def add_task(title: TaskTitle, priority: Priority = "medium") -> Task:
     return task
 
 
-@mcp.tool
+@mcp.tool(app=todo_app)
 def list_tasks(status: Status = "all") -> list[Task]:
     """List tasks, optionally filtered to open or done ones."""
     tasks = list(store.tasks.values())
@@ -76,7 +102,7 @@ def list_tasks(status: Status = "all") -> list[Task]:
     return tasks
 
 
-@mcp.tool
+@mcp.tool(app=todo_app)
 def complete_task(id: TaskId) -> Task:
     """Mark a task as done and return it."""
     task = _get(id)
@@ -84,7 +110,15 @@ def complete_task(id: TaskId) -> Task:
     return task
 
 
-@mcp.tool
+@mcp.tool(app=todo_app)
+def reopen_task(id: TaskId) -> Task:
+    """Mark a task as not done and return it."""
+    task = _get(id)
+    task.done = False
+    return task
+
+
+@mcp.tool(app=todo_app)
 def delete_task(id: TaskId) -> None:
     """Delete a task from the list."""
     _get(id)
