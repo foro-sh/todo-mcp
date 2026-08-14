@@ -54,9 +54,10 @@ uv run server.py
 ```
 
 The server speaks MCP over streamable HTTP at `http://localhost:8000/mcp`
-(set `MCP_PORT` to change the port).
+(set `PORT` to change the port - the same name foro injects when it deploys
+you).
 
 ## Deploy it
 
-This repo carries a `foro.yaml`, so it deploys on foro.sh as-is: sign in,
-pick this repo, deploy.
+Its `pyproject.toml` is all foro.sh needs, so this repo deploys as-is: sign
+in, pick this repo, deploy.
