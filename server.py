@@ -5,6 +5,7 @@ container, so tool calls in one session are visible in the next. State resets
 when the server restarts or redeploys (see README).
 """
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,7 +13,9 @@ from typing import Annotated, Literal
 
 from fastmcp import FastMCP
 from fastmcp.apps import AppConfig, ResourceCSP, app_config_to_meta_dict
+from fastmcp.server.providers.skills import SkillProvider
 from pydantic import Field
+from starlette.middleware import Middleware
 
 mcp = FastMCP(
     "todo-mcp",
@@ -137,6 +140,94 @@ def board() -> str:
     return "\n".join(lines)
 
 
+# Skills over MCP (io.modelcontextprotocol/skills, SEP-2640): each folder in
+# skills/ is an Agent Skill. FastMCP serves its files as `skill://` resources;
+# the extension's `skills/list` is not in the Python SDK yet, so it is
+# answered below, ahead of the SDK, which rejects methods it does not know.
+SKILLS_EXTENSION = "io.modelcontextprotocol/skills"
+SKILLS = [
+    SkillProvider(d) for d in sorted((Path(__file__).parent / "skills").iterdir()) if d.is_dir()
+]
+for skill in SKILLS:
+    mcp.add_provider(skill)
+
+_get_capabilities = mcp._mcp_server.get_capabilities
+
+
+def _with_skills_extension(*args, **kwargs):
+    capabilities = _get_capabilities(*args, **kwargs)
+    extensions = (capabilities.model_extra or {}).get("extensions") or {}
+    return capabilities.model_copy(
+        update={"extensions": {**extensions, SKILLS_EXTENSION: {}}}
+    )
+
+
+mcp._mcp_server.get_capabilities = _with_skills_extension
+
+
+def skills_list() -> dict:
+    skills = []
+    for skill in SKILLS:
+        info = skill.skill_info
+        skills.append(
+            {
+                "uri": f"skill://{info.name}/SKILL.md",
+                "frontmatter": info.frontmatter,
+                "resources": [
+                    {"uri": f"skill://{info.name}/{f.path}", "digest": f.hash, "size": f.size}
+                    for f in info.files
+                ],
+            }
+        )
+    return {"skills": skills}
+
+
+class SkillsListMiddleware:
+    """Answers a `skills/list` POST itself and passes everything else on."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] != "POST":
+            await self.app(scope, receive, send)
+            return
+        body, more = b"", True
+        while more:
+            message = await receive()
+            body += message.get("body", b"")
+            more = message.get("more_body", False)
+        try:
+            rpc = json.loads(body)
+        except ValueError:
+            rpc = None
+        if isinstance(rpc, dict) and rpc.get("method") == "skills/list":
+            payload = {"jsonrpc": "2.0", "id": rpc.get("id"), "result": skills_list()}
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [(b"content-type", b"application/json")],
+                }
+            )
+            await send({"type": "http.response.body", "body": json.dumps(payload).encode()})
+            return
+
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if replayed:
+                return await receive()
+            replayed = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        await self.app(scope, replay, send)
+
+
+HTTP_MIDDLEWARE = [Middleware(SkillsListMiddleware)]
+
+
 if __name__ == "__main__":
     mcp.run(
         transport="http",
@@ -148,4 +239,5 @@ if __name__ == "__main__":
         # with the public hostname, so this must be off — access control is
         # the platform's bearer token instead.
         host_origin_protection=False,
+        middleware=HTTP_MIDDLEWARE,
     )

@@ -39,6 +39,27 @@ the plain tool results.
 [apps]: https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/
 [sdk]: https://github.com/modelcontextprotocol/ext-apps
 
+## Skills
+
+The server also serves two [Agent Skills][skills] over the
+[Skills extension][skills-ext] (`io.modelcontextprotocol/skills`), each a
+folder under `skills/`:
+
+| Skill | What it does |
+| --- | --- |
+| `triage-tasks` | Clean up the board: close finished work, merge duplicates, re-rank priorities (with a supporting `priority-rubric.md`) |
+| `plan-my-day` | Turn the open tasks into a short, ordered plan for today |
+
+FastMCP's `SkillProvider` serves their files as `skill://<name>/<path>`
+resources. The extension's `skills/list` is not in the Python SDK yet, so
+`SkillsListMiddleware` in `server.py` answers it over HTTP, listing each
+skill's frontmatter and file manifest (URI, size, sha256 digest). To add a
+skill, add a folder with a `SKILL.md` whose frontmatter `name` matches the
+folder name. `uv run test_skills.py` checks the result.
+
+[skills]: https://agentskills.io
+[skills-ext]: https://modelcontextprotocol.io/extensions/skills/overview
+
 ## State
 
 Tasks live in the server's memory. That is the point of the example: a tool
