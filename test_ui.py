@@ -23,7 +23,7 @@ async def main() -> None:
         assert (await client.call_tool("reopen_task", {"id": 1})).data.done is False
 
         resource = next(r for r in await client.list_resources() if str(r.uri) == TODO_UI)
-        assert resource.mimeType == "text/html;profile=mcp-app", resource.mimeType
+        assert resource.mime_type == "text/html;profile=mcp-app", resource.mime_type
         assert resource.meta["ui"]["csp"]["resourceDomains"] == ["https://unpkg.com"]
 
         html = (await client.read_resource(TODO_UI))[0].text

@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "A stateful todo-list MCP server — the foro.sh example project"
 requires-python = ">=3.12"
 dependencies = [
-    # 3.4+ for the MCP Apps helpers (fastmcp.apps) the `ui://` view uses.
-    "fastmcp>=3.4",
+    # 4.1+ for the MCP Apps helpers (fastmcp.apps) the `ui://` view uses, and
+    # for the mcp v2 client surface (server_capabilities, extensions as a
+    # real field) the test suite relies on.
+    "fastmcp>=4.1",
     "pydantic>=2",
 ]
