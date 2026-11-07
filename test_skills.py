@@ -6,7 +6,7 @@
 import asyncio
 import hashlib
 
-import httpx
+import httpx2
 from fastmcp import Client
 
 from server import HTTP_MIDDLEWARE, SKILLS_EXTENSION, mcp
@@ -14,12 +14,12 @@ from server import HTTP_MIDDLEWARE, SKILLS_EXTENSION, mcp
 
 async def main() -> None:
     async with Client(mcp) as client:
-        caps = client.initialize_result.capabilities
-        assert SKILLS_EXTENSION in (caps.model_extra or {})["extensions"], caps
+        caps = client.server_capabilities
+        assert SKILLS_EXTENSION in caps.extensions, caps
         assert caps.resources is not None
 
         app = mcp.http_app(middleware=HTTP_MIDDLEWARE)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://t") as http:
+        async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app), base_url="http://t") as http:
             res = await http.post(
                 "/mcp",
                 json={"jsonrpc": "2.0", "id": 7, "method": "skills/list", "params": {}},
